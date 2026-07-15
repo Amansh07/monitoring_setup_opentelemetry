@@ -1,0 +1,88 @@
+# Azure VM Custom Configuration
+# Loaded last and overrides previous collector configs
+
+processors:
+
+  resource/azure_metadata:
+    attributes:
+
+      - key: deployment.environment
+        value: azure
+        action: upsert
+
+      - key: cloud.provider
+        value: azure
+        action: upsert
+
+      - key: host.ip
+        value: 10.1.39.68
+        action: upsert
+
+      - key: monitoring.stack
+        value: opentelemetry-demo
+        action: upsert
+
+service:
+
+  pipelines:
+
+    traces:
+      processors:
+        - resource/azure_metadata
+        - resourcedetection
+        - memory_limiter
+        - batch
+        - transform/sanitize_spans
+        - gen_ai_normalizer
+
+      exporters:
+        - debug
+        - otlp_grpc/jaeger
+        - span_metrics
+
+    metrics:
+      receivers:
+        - docker_stats
+        - http_check/frontend-proxy
+        - host_metrics
+        - nginx
+        - otlp
+        - redis
+        - postgresql
+        - prometheus/ad
+        - span_metrics
+
+      processors:
+        - resource/azure_metadata
+        - resourcedetection
+        - memory_limiter
+        - batch
+
+      exporters:
+        - debug
+        - otlp_http/prometheus
+
+    logs:
+      processors:
+        - resource/azure_metadata
+        - resourcedetection
+        - memory_limiter
+        - batch
+        - transform/sanitize_logs
+
+      exporters:
+        - debug
+        - opensearch
+
+    profiles:
+      processors:
+        - resource/azure_metadata
+        - resourcedetection
+        - filter/sanitize_profiles
+        - memory_limiter
+        - batch
+
+      exporters:
+        - debug
+        - otlp_grpc/firepit
+

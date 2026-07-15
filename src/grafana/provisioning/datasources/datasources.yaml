@@ -1,0 +1,46 @@
+apiVersion: 1
+
+deleteDatasources:
+  - name: Prometheus
+    orgId: 1
+
+  - name: Jaeger
+    orgId: 1
+
+  - name: OpenSearch
+    orgId: 1
+
+datasources:
+
+  - name: Prometheus
+    uid: prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    editable: true
+    jsonData:
+      httpMethod: POST
+
+  - name: Jaeger
+    uid: jaeger
+    type: jaeger
+    access: proxy
+    url: http://jaeger:16686
+    isDefault: false
+    editable: true
+
+  - name: OpenSearch
+    uid: opensearch
+    type: grafana-opensearch-datasource
+    access: proxy
+    url: http://opensearch:9200
+    isDefault: false
+    editable: true
+    jsonData:
+      database: otel-logs*
+      flavor: opensearch
+      version: "3.7.0"
+      timeField: "@timestamp"
+      logLevelField: severity_text
+      logMessageField: body

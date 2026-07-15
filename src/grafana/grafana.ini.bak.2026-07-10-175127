@@ -1,3 +1,7 @@
+############################
+# Grafana Azure VM Config
+############################
+
 [paths]
 provisioning = /etc/grafana/provisioning
 
@@ -5,6 +9,7 @@ provisioning = /etc/grafana/provisioning
 protocol = http
 http_port = 3000
 domain = 10.1.39.68
+
 root_url = http://10.1.39.68:8080/grafana/
 serve_from_sub_path = true
 
@@ -29,9 +34,22 @@ min_refresh_interval = 5s
 [explore]
 enabled = true
 
+[help]
+enabled = true
+
+[profile]
+enabled = true
+
+[query_history]
+enabled = true
+
 [log]
 mode = console
 level = info
 
 [metrics]
 enabled = true
+
+[feature_toggles]
+enable = correlations
+

@@ -1,15 +1,8 @@
 # Copyright The OpenTelemetry Authors
 # SPDX-License-Identifier: Apache-2.0
 
-# Observability stack layer: adds Jaeger, Prometheus, OpenSearch, Grafana, and
-# an OpAMP server, and patches the otel-collector to export to or report to them.
-#
-# Usage:
-#   docker compose -f compose.yaml -f compose.observability.yaml up
-#   docker compose -f compose.yaml -f compose.full.yaml -f compose.observability.yaml up
-
 services:
-  # Jaeger
+
   jaeger:
     image: ${JAEGERTRACING_IMAGE}
     container_name: jaeger
@@ -33,34 +26,34 @@ services:
     volumes:
       - ./src/jaeger/config.yml:/etc/jaeger/config.yml
     logging:
-      driver: "json-file"
+      driver: json-file
       options:
         max-size: "5m"
         max-file: "2"
 
-  # Grafana
   grafana:
     image: ${GRAFANA_IMAGE}
     container_name: grafana
     deploy:
       resources:
         limits:
-          memory: 175M
+          memory: 300M
     restart: unless-stopped
     environment:
-      - "GF_INSTALL_PLUGINS=grafana-opensearch-datasource"
+      - GF_INSTALL_PLUGINS=grafana-opensearch-datasource
+      - GF_SERVER_ROOT_URL=http://10.1.39.68:8080/grafana/
+      - GF_SERVER_SERVE_FROM_SUB_PATH=true
     volumes:
       - ./src/grafana/grafana.ini:/etc/grafana/grafana.ini
-      - ./src/grafana/provisioning/:/etc/grafana/provisioning/
+      - ./src/grafana/provisioning:/etc/grafana/provisioning
     ports:
       - "${GRAFANA_PORT}"
     logging:
-      driver: "json-file"
+      driver: json-file
       options:
         max-size: "5m"
         max-file: "2"
 
-  # Prometheus
   prometheus:
     image: ${PROMETHEUS_IMAGE}
     container_name: prometheus
@@ -79,17 +72,16 @@ services:
     deploy:
       resources:
         limits:
-          memory: 200M
+          memory: 400M
     restart: unless-stopped
     ports:
       - "${PROMETHEUS_PORT}:${PROMETHEUS_PORT}"
     logging:
-      driver: "json-file"
+      driver: json-file
       options:
         max-size: "5m"
         max-file: "2"
 
-  # OpenSearch
   opensearch:
     image: ${IMAGE_NAME}:${DEMO_VERSION}-opensearch
     container_name: opensearch
@@ -98,21 +90,24 @@ services:
       dockerfile: ${OPENSEARCH_DOCKERFILE}
       cache_from:
         - ${IMAGE_NAME}:${IMAGE_VERSION}-opensearch
+
     deploy:
       resources:
         limits:
-          memory: 1G
+          memory: 2G
+
     restart: unless-stopped
+
     environment:
       - cluster.name=demo-cluster
       - node.name=demo-node
       - bootstrap.memory_lock=true
       - discovery.type=single-node
-      - OPENSEARCH_JAVA_OPTS=-Xms400m -Xmx400m
+      - OPENSEARCH_JAVA_OPTS=-Xms1g -Xmx1g
       - DISABLE_INSTALL_DEMO_CONFIG=true
       - DISABLE_SECURITY_PLUGIN=true
-      # Workaround on OSX for https://bugs.openjdk.org/browse/JDK-8345296
       - _JAVA_OPTIONS
+
     ulimits:
       memlock:
         soft: -1
@@ -120,26 +115,27 @@ services:
       nofile:
         soft: 65536
         hard: 65536
+
     ports:
-      - "9200"
+      - "9200:9200"
+
     healthcheck:
       test: curl -s http://localhost:9200/_cluster/health | grep -E '"status":"(green|yellow)"'
       start_period: 10s
       interval: 5s
       timeout: 10s
       retries: 10
+
     logging:
-      driver: "json-file"
+      driver: json-file
       options:
         max-size: "5m"
         max-file: "2"
 
-  # OpAMP Server
-  # The collector connects to this control plane and reports status through the
-  # opampextension.
   opamp-server:
     image: ${IMAGE_NAME}:${DEMO_VERSION}-opamp-server
     container_name: opamp-server
+
     build:
       context: ./
       dockerfile: ${OPAMP_SERVER_DOCKERFILE}
@@ -147,24 +143,38 @@ services:
         OPAMP_GO_REF: ${OPAMP_GO_REF}
       cache_from:
         - ${IMAGE_NAME}:${IMAGE_VERSION}-opamp-server
+
     deploy:
       resources:
         limits:
-          memory: 65M
+          memory: 128M
+
     restart: unless-stopped
+
+    ports:
+      - "4321:4321"
+
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:4321/"]
+      test:
+        [
+          "CMD",
+          "wget",
+          "--quiet",
+          "--tries=1",
+          "--spider",
+          "http://localhost:4321/"
+        ]
       start_period: 10s
       interval: 5s
       timeout: 5s
       retries: 10
+
     logging:
-      driver: "json-file"
+      driver: json-file
       options:
         max-size: "5m"
         max-file: "2"
 
-  # Patch frontend-proxy to wait for observability UIs
   frontend-proxy:
     depends_on:
       jaeger:
@@ -174,11 +184,6 @@ services:
       opamp-server:
         condition: service_healthy
 
-  # Patch otel-collector to add observability exporters and wait for backends.
-  # Note: otelcol-config-full.yml is included here to maintain correct config ordering
-  # (core → full → observability → extras). When running minimal+observability without
-  # compose.full.yaml, the Kafka/PostgreSQL receivers in the full config are harmless —
-  # they will simply fail to scrape since those services are not running.
   otel-collector:
     command:
       - "--config=/etc/otelcol-config.yml"
@@ -186,13 +191,21 @@ services:
       - "--config=/etc/otelcol-config-observability.yml"
       - "--config=/etc/otelcol-config-extras.yml"
       - "--feature-gates=service.profilesSupport"
+
+    deploy:
+      resources:
+        limits:
+          memory: 500M
+
     volumes:
       - ${OTEL_COLLECTOR_CONFIG}:/etc/otelcol-config.yml
       - ${OTEL_COLLECTOR_CONFIG_FULL}:/etc/otelcol-config-full.yml
       - ${OTEL_COLLECTOR_CONFIG_OBSERVABILITY}:/etc/otelcol-config-observability.yml
       - ${OTEL_COLLECTOR_CONFIG_EXTRAS}:/etc/otelcol-config-extras.yml
+
     environment:
       - KAFKA_ADDR
+
     depends_on:
       jaeger:
         condition: service_started
@@ -200,3 +213,4 @@ services:
         condition: service_healthy
       opamp-server:
         condition: service_healthy
+
