@@ -29,7 +29,7 @@
       }
     },
     "cartFailure": {
-      "defaultVariant": "100%",
+      "defaultVariant": "off",
       "description": "Fail cart service n% of the time",
       "state": "ENABLED",
       "variants": {
@@ -103,7 +103,7 @@
       }
     },
     "paymentFailure": {
-      "defaultVariant": "100%",
+      "defaultVariant": "off",
       "description": "Fail payment service charge requests n%",
       "state": "ENABLED",
       "variants": {
@@ -139,7 +139,7 @@
               "OLJCESPC7Z"
             ]
           },
-          "on",
+          "off",
           "off"
         ]
       },
